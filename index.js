@@ -9,6 +9,7 @@ const isJSON = require('is-json')
 const async = require('async')
 const xpath = require('xpath')
 const VIMS = require('./vims')
+const DHIS = require('./dhis')
 const OIM = require('./openinfoman')
 const Dom = require('xmldom').DOMParser
 
@@ -74,46 +75,128 @@ function setupApp () {
     })
   }
 
-  app.get('/syncVIMS', (req, res) => {
+  app.get('/syncVIMSFacilities', (req, res) => {
     let orchestrations = []
     const vims = VIMS(config.vims)
     const oim = OIM(config.openinfoman)
     //transaction will take long time,send response and then go ahead processing
-    //res.end()
-    //updateTransaction (req,"Still Processing","Processing","200","")
+    res.end()
+    updateTransaction (req,"Still Processing","Processing","200","")
     var facilities = {}
-    vims.lookup("facilities","paging=false",orchestrations,(err,body)=>{
-      global.facilities = body
-      vims.lookup("geographic-zones","",orchestrations,(err,body)=>{
-        global.zones = body
+    async.parallel([
+      function(callback) {
+        vims.lookup("facilities","paging=false",orchestrations,(err,body)=>{
+          callback(err, body);
+        })
+      },
+      function(callback) {
+        vims.lookup("geographic-zones","",orchestrations,(err,body)=>{
+        callback(err, body);
+        })
+      },
+      function(callback) {
         vims.lookup("facility-types","",orchestrations,(err,body)=>{
-          var facilitytypes = body
-          if(err) {
-            winston.error(err)
-          }
-          if(!isJSON(global.facilities) || !isJSON(global.zones) || !isJSON(facilitytypes)) {
-            winston.error("VIMS has returned non JSON data,stop processing")
-            return
-          }
-          facilities = JSON.parse(global.facilities)
-          zones = JSON.parse(global.zones)
-          facilitytypes = JSON.parse(facilitytypes)
+        callback(err, body);
+        })
+      },
+    ],
+    function(err,results) {
+      var facilities = results[0]
+      var zones = results[1]
+      var facilitytypes = results[2]
+      winston.error(zones)
+      if(err) {
+        winston.error(err)
+      }
+      if(!isJSON(facilities) || !isJSON(zones) || !isJSON(facilitytypes)) {
+        winston.error("VIMS has returned non JSON data,stop processing")
+        return
+      }
+      facilities = JSON.parse(facilities)
+      zones = JSON.parse(zones)
+      facilitytypes = JSON.parse(facilitytypes)
 
-          async.eachSeries(facilities.facilities,(facility,nextFacility)=>{
-            vims.searchLookup(zones["geographic-zones"],facility.geographicZoneId,(zonename)=>{
-              facility.zonename = zonename
-              vims.searchLookup(facilitytypes["facility-types"],facility.typeId,(ftype)=>{
-                facility.facilityType = ftype
-                oim.addVIMSFacility(facility,(err,body)=>{
-                  winston.info("Processed " + facility.name)
-                  return nextFacility()
-                })
-              })
+      async.eachSeries(facilities.facilities,(facility,nextFacility)=>{
+        vims.searchLookup(zones["geographic-zones"],facility.geographicZoneId,(zonename)=>{
+          facility.zonename = zonename
+          vims.searchLookup(facilitytypes["facility-types"],facility.typeId,(ftype)=>{
+            facility.facilityType = ftype
+            oim.addVIMSFacility(facility,(err,body)=>{
+              winston.info("Processed " + facility.name)
+              return nextFacility()
             })
-          },function(){
-
           })
         })
+      },function(){
+        winston.info('Done Synchronizing VIMS Facilities!!!')
+        updateTransaction(req,"","Successful","200",orchestrations)
+        orchestrations = []
+      })
+    }
+    )
+  }),
+
+  app.get('/syncDHIS2Facilities', (req, res) => {
+    let orchestrations = []
+    const dhis = DHIS(config.dhis)
+    const oim = OIM(config.openinfoman)
+    //transaction will take long time,send response and then go ahead processing
+    res.end()
+    updateTransaction (req,"Still Processing","Processing","200","")
+    var processedParents = []
+    dhis.getFacilities(orchestrations,(orgUnits)=>{
+      async.eachSeries(orgUnits,(orgUnit,nxt)=>{
+        const promises = []
+        for(var k=0;k<orgUnit.length;k++) {
+          promises.push(new Promise((resolve, reject) => {
+            dhis.getOrgUnitDet(orgUnit[k].id,orchestrations,(err,orgUnitDet)=>{
+              var orgUnitDet = JSON.parse(orgUnitDet)
+              winston.info("Processing " + orgUnitDet.name)
+              oim.addDHISFacility(orgUnitDet,orchestrations,(err, res,body,pid)=>{
+                //add district
+                if(pid && processedParents.indexOf(pid) == -1) {
+                  processedParents.push(pid)
+                  dhis.getOrgUnitDet(pid,orchestrations,(err,orgUnitDet)=>{
+                    oim.addDHISOrg(JSON.parse(orgUnitDet),orchestrations,(err,res,body,pid)=>{
+                      //add region
+                      if(pid && processedParents.indexOf(pid) == -1) {
+                        processedParents.push(pid)
+                        dhis.getOrgUnitDet(pid,orchestrations,(err,orgUnitDet)=>{
+                          oim.addDHISOrg(JSON.parse(orgUnitDet),orchestrations,(err,res,body,pid)=>{
+                            //add country
+                            if(pid && processedParents.indexOf(pid) == -1) {
+                              processedParents.push(pid)
+                              dhis.getOrgUnitDet(pid,orchestrations,(err,orgUnitDet)=>{
+                                oim.addDHISOrg(JSON.parse(orgUnitDet),orchestrations,(err,res,body,pid)=>{
+                                  resolve()
+                                })
+                              })
+                            }
+                            else
+                              resolve()
+                          })
+                        })
+                      }
+                      else
+                        resolve()
+                    })
+                  })
+                }
+                else
+                  resolve()
+              })
+            })
+          }))
+        }
+
+        Promise.all(promises).then(() => {
+          return nxt()
+        })
+
+      },function(){
+        winston.info("Done Sync DHIS2 Facilities")
+        updateTransaction(req,"","Successful","200",orchestrations)
+        orchestrations = []
       })
     })
   })

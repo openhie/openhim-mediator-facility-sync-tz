@@ -1,0 +1,270 @@
+    {
+      "urn": "urn:uuid:7078b8b7-16b9-48cd-b8ad-38be64733d76",
+      "version": "0.0.1",
+      "name": "Facility Synchronization between OpenInfoMan and HFR/DHIS2/VIMS",
+      "description": "This mediator synchronises HFR,DHIS2,VIMS facilities with OpenInfoMan",
+      "config": {
+        "openinfoman": {
+          "dhis_document": "dhis",
+          "vims_document": "vims",
+          "hfr_document": "hfr",
+          "url": "http://localhost:8984"
+        },
+        "vims": {
+          "password": "",
+          "username": "",
+          "url": "https://vims.moh.go.tz"
+        },
+        "dhis": {
+          "password": "",
+          "username": "",
+          "url": "http://41.217.202.50:8080/dhis"
+        },
+        "hfr": {
+          "password": "",
+          "username": "",
+          "url": "http://resourcemap.instedd.org"
+        }
+      },
+      "configDefs": [
+        {
+          "param": "hfr",
+          "displayName": "Health Facility Registry (HFR)",
+          "description": "HFR Configuration Details",
+          "type": "struct",
+          "template": [
+            {
+              "type": "string",
+              "description": "The base URL (e.g. http://resourcemap.instedd.org)",
+              "displayName": "URL",
+              "param": "url"
+            },
+            {
+              "type": "string",
+              "description": "Username required to send data to DHIS2",
+              "displayName": "Username",
+              "param": "username"
+            },
+            {
+              "type": "password",
+              "description": "Password required to send data to DHIS2",
+              "displayName": "Password",
+              "param": "password"
+            }
+          ],
+          "values": []
+        },
+        {
+          "param": "dhis",
+          "displayName": "DHIS2",
+          "description": "The DHIS2 server to pull facility data from",
+          "type": "struct",
+          "template": [
+            {
+              "type": "string",
+              "description": "The base URL (e.g. http://41.217.202.50:8080/dhis)",
+              "displayName": "URL",
+              "param": "url"
+            },
+            {
+              "type": "string",
+              "description": "Username required to send data to DHIS2",
+              "displayName": "Username",
+              "param": "username"
+            },
+            {
+              "type": "password",
+              "description": "Password required to send data to DHIS2",
+              "displayName": "Password",
+              "param": "password"
+            }
+          ],
+          "values": []
+        },
+        {
+          "param": "vims",
+          "displayName": "VIMS",
+          "description": "The VIMS server to pull facility data from",
+          "type": "struct",
+          "template": [
+            {
+              "type": "string",
+              "description": "The base URL (e.g. https://vims.moh.go.tz)",
+              "displayName": "URL",
+              "param": "url"
+            },
+            {
+              "type": "string",
+              "description": "Username required to send data to DHIS2",
+              "displayName": "Username",
+              "param": "username"
+            },
+            {
+              "type": "password",
+              "description": "Password required to send data to DHIS2",
+              "displayName": "Password",
+              "param": "password"
+            }
+          ],
+          "values": []
+        },
+        {
+          "param": "openinfoman",
+          "displayName": "InterLinked Registry - Openinfoman",
+          "description": "Server holding facility mappings between DHIS2,VIMS,TImR and HFR",
+          "type": "struct",
+          "template": [
+            {
+              "type": "string",
+              "description": "The base URL (e.g. http://52.32.67.173:8984/CSD)",
+              "displayName": "URL",
+              "param": "url"
+            },
+            {
+              "type": "string",
+              "description": "Document holding HFR facilities",
+              "displayName": "HFR Facility Document",
+              "param": "hfr_document"
+            },
+            {
+              "type": "string",
+              "description": "Document holding VIMS facilities",
+              "displayName": "VIMS Facility Document",
+              "param": "vims_document"
+            },
+            {
+              "type": "string",
+              "description": "Document holding DHIS2 facilities",
+              "displayName": "DHIS2 Facility Document",
+              "param": "dhis_document"
+            }
+          ],
+          "values": []
+        }
+      ],
+      "defaultChannelConfig": [
+        {
+          "name": "AUTO - HFR and OIM Sync",
+          "urlPattern": "^/hfr_oim_sync$",
+          "pollingSchedule": "0 10 * * 6",
+          "autoRetryPeriodMinutes": 60,
+          "autoRetryEnabled": false,
+          "rewriteUrlsConfig": [],
+          "addAutoRewriteRules": true,
+          "rewriteUrls": false,
+          "status": "enabled",
+          "alerts": [],
+          "txRerunAcl": [],
+          "txViewFullAcl": [],
+          "txViewAcl": [],
+          "properties": [],
+          "matchContentTypes": [],
+          "routes": [
+            {
+              "name": "Activate OIM and HFR Facilities Sync",
+              "secured": false,
+              "host": "localhost",
+              "port": 8544,
+              "path": "/syncWithHFR",
+              "primary": true,
+              "forwardAuthHeader": false,
+              "status": "enabled",
+              "type": "http"
+            }
+          ],
+          "authType": "private",
+          "whitelist": [],
+          "allow": [
+            "dhis2-timr-sync"
+          ],
+          "type": "polling"
+        },
+        {
+          "name": "AUTO - DHIS2 and OIM Sync",
+          "urlPattern": "^/dhis2_oim_sync$",
+          "pollingSchedule": "0 11 * * 6",
+          "autoRetryPeriodMinutes": 60,
+          "autoRetryEnabled": false,
+          "rewriteUrlsConfig": [],
+          "addAutoRewriteRules": true,
+          "rewriteUrls": false,
+          "status": "enabled",
+          "alerts": [],
+          "txRerunAcl": [],
+          "txViewFullAcl": [],
+          "txViewAcl": [],
+          "properties": [],
+          "matchContentTypes": [],
+          "routes": [
+            {
+              "name": "Activate OIM and DHIS2 Facilities Sync",
+              "secured": false,
+              "host": "localhost",
+              "port": 8544,
+              "path": "/syncWithDHIS2",
+              "primary": true,
+              "forwardAuthHeader": false,
+              "status": "enabled",
+              "type": "http"
+            }
+          ],
+          "authType": "private",
+          "whitelist": [],
+          "allow": [
+            "dhis2-timr-sync"
+          ],
+          "type": "polling"
+        },
+        {
+          "name": "AUTO - VIMS and OIM Sync",
+          "urlPattern": "^/vims_oim_sync$",
+          "pollingSchedule": "0 12 * * 6",
+          "autoRetryPeriodMinutes": 60,
+          "autoRetryEnabled": false,
+          "rewriteUrlsConfig": [],
+          "addAutoRewriteRules": true,
+          "rewriteUrls": false,
+          "status": "enabled",
+          "alerts": [],
+          "txRerunAcl": [],
+          "txViewFullAcl": [],
+          "txViewAcl": [],
+          "properties": [],
+          "matchContentTypes": [],
+          "routes": [
+            {
+              "name": "Activate OIM and VIMS Facilities Sync",
+              "secured": false,
+              "host": "localhost",
+              "port": 8544,
+              "path": "/syncWithVIMS",
+              "primary": true,
+              "forwardAuthHeader": false,
+              "status": "enabled",
+              "type": "http"
+            }
+          ],
+          "authType": "private",
+          "whitelist": [],
+          "allow": [
+            "dhis2-timr-sync"
+          ],
+          "type": "polling"
+        }
+      ],
+      "endpoints": [
+        {
+          "name": "Activate OpenInfoMan Facilities Sync",
+          "host": "localhost",
+          "path": "/sync",
+          "port": 9002,
+          "primary": true,
+          "forwardAuthHeader": false,
+          "status": "enabled",
+          "type": "http"
+        }
+      ],
+      "_uptime": 2201.945,
+      "_lastHeartbeat": "2017-12-15T03:47:03.365Z",
+      "_configModifiedTS": "2017-12-15T02:52:49.054Z"
+    }
