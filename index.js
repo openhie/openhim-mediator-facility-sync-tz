@@ -6,10 +6,13 @@ const medUtils = require('openhim-mediator-utils')
 const express = require('express')
 const request = require('request')
 const isJSON = require('is-json')
+const URI = require('urijs')
+const utils = require('./utils')
 const async = require('async')
 const xpath = require('xpath')
 const VIMS = require('./vims')
 const DHIS = require('./dhis')
+const HFR = require('./hfr')
 const OIM = require('./openinfoman')
 const Dom = require('xmldom').DOMParser
 
@@ -104,7 +107,6 @@ function setupApp () {
       var facilities = results[0]
       var zones = results[1]
       var facilitytypes = results[2]
-      winston.error(zones)
       if(err) {
         winston.error(err)
       }
@@ -121,7 +123,7 @@ function setupApp () {
           facility.zonename = zonename
           vims.searchLookup(facilitytypes["facility-types"],facility.typeId,(ftype)=>{
             facility.facilityType = ftype
-            oim.addVIMSFacility(facility,(err,body)=>{
+            oim.addVIMSFacility(facility,orchestrations,(err,body)=>{
               winston.info("Processed " + facility.name)
               return nextFacility()
             })
@@ -199,6 +201,124 @@ function setupApp () {
         orchestrations = []
       })
     })
+  }),
+
+  app.get('/syncHFROrgs', (req, res) => {
+    let orchestrations = []
+    const hfr = HFR(config.hfr)
+    const oim = OIM(config.openinfoman)
+    //transaction will take long time,send response and then go ahead processing
+    res.end()
+    updateTransaction (req,"Still Processing","Processing","200","")
+
+    var loop_counter = {}
+    function extract_orgs(org,parent) {
+      loop_counter[parent] = org.length
+      for(var k = 0;k<org.length;k++) {
+        if("sub" in org[k]) {
+          extract_orgs(org[k].sub,org[k].id)
+        }
+        loop_counter[parent]--
+        if(loop_counter[parent] === 0)
+        delete loop_counter[parent]
+        orgs.push({"name":org[k].name,"id":org[k].id,"parent":parent})
+      }
+
+      if(!Object.keys(loop_counter).length) {
+        oim.addHFROrgs(orgs,orchestrations,(err,res,body)=>{
+          winston.info("Done Sync DHIS2 Facilities")
+          updateTransaction(req,"","Successful","200",orchestrations)
+          orchestrations = []
+        })
+      }
+    }
+
+    var url = new URI(config.hfr.url).segment('/en/collections/409/fields/1629')
+    var username = config.hfr.username
+    var password = config.hfr.password
+    var auth = "Basic " + new Buffer(username + ":" + password).toString("base64")
+
+    var options = {
+      url: url.toString(),
+      headers: {
+        Authorization: auth
+      }
+    }
+
+    request.get(options, (err, res, body) => {
+      if (err) {
+        return callback(err)
+      }
+      var body = JSON.parse(body)
+      var orgs = extract_orgs(body.config.hierarchy,"Top")
+    })
+
+  }),
+
+  app.get('/syncHFRFacilities', (req, res) => {
+    let orchestrations = []
+    const hfr = HFR(config.hfr)
+    const oim = OIM(config.openinfoman)
+    //transaction will take long time,send response and then go ahead processing
+    res.end()
+    updateTransaction (req,"Still Processing","Processing","200","")
+    var nexturl = new URI(config.hfr.url).segment('/api/collections/409.json').addQuery('human', 'false')
+    var username = config.hfr.username
+    var password = config.hfr.password
+    var auth = "Basic " + new Buffer(username + ":" + password).toString("base64")
+
+    const promises = []
+    async.doWhilst(
+      function(callback) {
+        var options = {
+          url: nexturl.toString(),
+          headers: {
+            Authorization: auth
+          }
+        }
+        let before = new Date()
+        request.get(options, function (err, res, body) {
+          if(isJSON(body)) {
+            var body = JSON.parse(body)
+            if(body.hasOwnProperty("sites")) {
+              for(var k=0;k<body.sites.length;k++) {
+                promises.push(new Promise((resolve, reject) => {
+                  oim.addHFRFacility(body.sites[k],orchestrations,(err,res,body)=>{
+                    resolve()
+                  })
+                }))
+              }
+              if(body.hasOwnProperty("nextPage"))
+                nexturl = body.nextPage
+              else
+                nexturl = false
+            }
+          }
+          else {
+            winston.error("Non JSON data returned by HFR while getting facilities")
+            return callback(err,false)
+          }
+          orchestrations.push(utils.buildOrchestration('Fetching facilities from HFR', before, 'GET', nexturl.toString(), JSON.stringify(options.headers), res, body))
+          return callback(err,nexturl)
+        })
+      },
+      function() {
+        if(nexturl)
+        winston.info("Fetching In " + nexturl)
+        if(nexturl == false) {
+          Promise.all(promises).then(() => {
+            winston.info("Done Sync HFR Facilities")
+            updateTransaction(req,"","Successful","200",orchestrations)
+            orchestrations = []
+          })
+        }
+        return (nexturl!=false)
+      },
+      function() {
+        winston.info("Done fetching all url")
+      }
+    )
+
   })
 
   return app
