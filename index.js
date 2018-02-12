@@ -159,17 +159,17 @@ function setupApp () {
                 if(pid && processedParents.indexOf(pid) == -1) {
                   processedParents.push(pid)
                   dhis.getOrgUnitDet(pid,orchestrations,(err,orgUnitDet)=>{
-                    oim.addDHISOrg(JSON.parse(orgUnitDet),orchestrations,(err,res,body,pid)=>{
+                    oim.addDHISOrg(JSON.parse(orgUnitDet),"district",orchestrations,(err,res,body,pid)=>{
                       //add region
                       if(pid && processedParents.indexOf(pid) == -1) {
                         processedParents.push(pid)
                         dhis.getOrgUnitDet(pid,orchestrations,(err,orgUnitDet)=>{
-                          oim.addDHISOrg(JSON.parse(orgUnitDet),orchestrations,(err,res,body,pid)=>{
+                          oim.addDHISOrg(JSON.parse(orgUnitDet),"region",orchestrations,(err,res,body,pid)=>{
                             //add country
                             if(pid && processedParents.indexOf(pid) == -1) {
                               processedParents.push(pid)
                               dhis.getOrgUnitDet(pid,orchestrations,(err,orgUnitDet)=>{
-                                oim.addDHISOrg(JSON.parse(orgUnitDet),orchestrations,(err,res,body,pid)=>{
+                                oim.addDHISOrg(JSON.parse(orgUnitDet),"country",orchestrations,(err,res,body,pid)=>{
                                   resolve()
                                 })
                               })

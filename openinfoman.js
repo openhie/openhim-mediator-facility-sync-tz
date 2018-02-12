@@ -111,7 +111,7 @@ module.exports = function (oimconfig) {
       })
     },
 
-    addDHISOrg: function(orgUnitDet,orchestrations,callback) {
+    addDHISOrg: function(orgUnitDet,type,orchestrations,callback) {
       var url = new URI(config.url)
         .segment('/CSD/csr/')
         .segment(config.dhis_document)
@@ -127,6 +127,7 @@ module.exports = function (oimconfig) {
       var csd_msg = `<csd:requestParams xmlns:csd="urn:ihe:iti:csd:2013">
                       <csd:organization id="${orgUnitDet.id}">
                         <csd:name>${name}</csd:name>
+                        <csd:type>${type}</csd:type>
                         <csd:parent id="${pid}"/>
                       </csd:organization>
                      </csd:requestParams>`
