@@ -10,11 +10,14 @@ const URI = require('urijs')
 const utils = require('./utils')
 const async = require('async')
 const xpath = require('xpath')
+const XmlReader = require('xml-reader')
+const xmlQuery = require('xml-query')
 const VIMS = require('./vims')
 const DHIS = require('./dhis')
 const HFR = require('./hfr')
 const OIM = require('./openinfoman')
 const Dom = require('xmldom').DOMParser
+var xml2json = require('xml2json');
 
 // Config
 var config = {} // this will vary depending on whats set in openhim-core
@@ -153,6 +156,10 @@ function setupApp () {
           promises.push(new Promise((resolve, reject) => {
             dhis.getOrgUnitDet(orgUnit[k].id,orchestrations,(err,orgUnitDet)=>{
               var orgUnitDet = JSON.parse(orgUnitDet)
+              var path = orgUnitDet.path.split("/")
+              if(path.length<5) {
+                return resolve()
+              }
               winston.info("Processing " + orgUnitDet.name)
               oim.addDHISFacility(orgUnitDet,orchestrations,(err, res,body,pid)=>{
                 //add district
@@ -319,6 +326,102 @@ function setupApp () {
       }
     )
 
+  }),
+
+  app.get('/autoMapDHIS-HFR', (req, res) => {
+    let orchestrations = []
+    const dhis = DHIS(config.dhis)
+    const oim = OIM(config.openinfoman)
+    //this transaction will take long time,send response and then go ahead processing
+    res.end()
+    updateTransaction (req,"Still Processing","Processing","200","")
+    oim.countEntities("facility",orchestrations,(err,res,total)=>{
+      var firstRow = 1
+      var maxRows = 50
+      const promises = []
+      for (var lastRow = maxRows; lastRow <= total; firstRow=lastRow+1,lastRow=lastRow+maxRows) {
+        var diff = total-lastRow
+        if(diff < maxRows)
+          lastRow = total
+        oim.getFacilities("dhis_document",firstRow,maxRows,orchestrations,(err,res,body)=>{
+          var ast = XmlReader.parseSync(body)
+          var totalFac = xmlQuery(ast).find("facilityDirectory").children().size()
+          var facilityDirectory = xmlQuery(ast).find("facilityDirectory").children()
+          for(var counter = 0;counter<totalFac;counter++) {
+            promises.push(new Promise((resolve, reject) => {
+              var DHISentityID = facilityDirectory.eq(counter).attr("entityID")
+              var facilityDetails = facilityDirectory.eq(counter).children()
+              var totalDetails = facilityDirectory.eq(counter).children().size()
+              var detailsLoopControl = totalDetails
+              var results = new Object
+              async.series([
+                function(callback) {
+                  for(var detailsCount = 0;detailsCount<totalDetails;detailsCount++) {
+                    if( facilityDetails.eq(detailsCount).attr("assigningAuthorityName") == "http://hfrportal.ehealth.go.tz" &&
+                        facilityDetails.eq(detailsCount).attr("code") == "code"
+                      ) {
+                        results.hfrcode = facilityDetails.eq(detailsCount).text()
+                      }
+                    if( facilityDetails.eq(detailsCount).attr("assigningAuthorityName") == "tanzania-hmis" &&
+                        facilityDetails.eq(detailsCount).attr("code") == "dhisid"
+                      ) {
+                        results.dhisid = facilityDetails.eq(detailsCount).text()
+                      }
+                      detailsLoopControl--
+                      if(detailsLoopControl == 0) {
+                        return callback(false,results)
+                      }
+                  }
+                }
+
+                ],
+                function(err,results) {
+                  if(!results[0].hasOwnProperty("hfrcode") || !results[0].hasOwnProperty("dhisid")) {
+                    return resolve()
+                  }
+                  if(results[0].hfrcode == "" || results[0].hfrcode=="undefined"){
+                    return resolve()
+                  }
+                  oim.searchByHFRCode("hfr_document",results[0].hfrcode,orchestrations,(err,res,body)=>{
+                    var json = xml2json.toJson(body)
+                    json = JSON.parse(json)
+                    if(!json.CSD.facilityDirectory.hasOwnProperty("csd:facility")){
+                      winston.error("Missed")
+                      return resolve()
+                    }
+                    var otherIDs = json.CSD.facilityDirectory["csd:facility"]["csd:otherID"]
+                    var mapped = false
+                    async.eachSeries(otherIDs,(otherid,nxtid)=>{
+                      if(otherid["code"] == "id" && otherid["assigningAuthorityName"] == "tanzania-hmis")
+                        mapped = true
+                      return nxtid()
+                    },function(){
+                      if(mapped) {
+                        winston.error("mapped")
+                        return resolve()
+                      }
+                      else {
+                        var target_id = json.CSD.facilityDirectory["csd:facility"]["entityID"]
+                        var source_id = results[0].dhisid
+                        var csd_msg = `<csd:requestParams xmlns:csd='urn:ihe:iti:csd:2013'>
+                                          <csd:id entityID='${target_id}'/>
+                                          <csd:otherID assigningAuthorityName='tanzania-hmis' code='id'>${source_id}</csd:otherID>
+                                        </csd:requestParams>`
+                        var urn = "urn:openhie.org:openinfoman-tz:stored-function:facility_create_otherid"
+                        oim.execReq("hfr_document",csd_msg,urn,orchestrations,(err,res,body)=>{
+                          return resolve()
+                        })
+                      }
+                    })
+
+                  })
+                }
+              )
+            }))
+          }
+        })
+      }
+    })
   })
 
   return app

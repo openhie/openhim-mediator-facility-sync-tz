@@ -40,6 +40,90 @@ module.exports = function (oimconfig) {
   }
 
   return {
+    countEntities: function(entity_type,orchestrations,callback) {
+      var url = new URI(config.url)
+        .segment('/CSD/csr/')
+        .segment(config.vims_document)
+        .segment('careServicesRequest')
+        .segment('/urn:ihe:iti:csd:2014:adhoc')
+      var csd_msg = `<csd:requestParams xmlns:csd='urn:ihe:iti:csd:2013'>
+                      <adhoc>declare namespace csd = 'urn:ihe:iti:csd:2013';count(/csd:CSD/csd:${entity_type}Directory/*)</adhoc>
+                     </csd:requestParams>`
+      var username = config.username
+      var password = config.password
+      var auth = "Basic " + new Buffer(username + ":" + password).toString("base64")
+      var options = {
+        url: url.toString(),
+        headers: {
+          Authorization: auth,
+          'Content-Type': 'text/xml'
+           },
+           body: csd_msg
+      }
+
+      let before = new Date()
+      request.post(options, function (err, res, body) {
+        orchestrations.push(utils.buildOrchestration('Counting entities', before, 'GET', url.toString(), JSON.stringify(options.headers), res, body))
+        return callback(err,res,body)
+      })
+    },
+
+    getFacilities: function (document,first_row,max_rows,orchestrations,callback) {
+      var url = new URI(config.url)
+        .segment('/CSD/csr/')
+        .segment(config[document])
+        .segment('careServicesRequest')
+        .segment('/urn:openhie.org:openinfoman-hwr:stored-function:facility_get_all')
+      var username = config.username
+      var password = config.password
+      var auth = "Basic " + new Buffer(username + ":" + password).toString("base64")
+      var csd_msg = `<csd:requestParams xmlns:csd='urn:ihe:iti:csd:2013'>
+                      <csd:start>${first_row}</csd:start>
+                      <csd:max>${max_rows}</csd:max>
+                    </csd:requestParams>`
+      var options = {
+        url: url.toString(),
+        headers: {
+          Authorization: auth,
+          'Content-Type': 'text/xml'
+           },
+           body: csd_msg
+      }
+      let before = new Date()
+      request.post(options, function (err, res, body) {
+        orchestrations.push(utils.buildOrchestration('getting all facilities', before, 'GET', url.toString(), JSON.stringify(options.headers), res, body))
+        return callback(err,res,body)
+      })
+    },
+
+    searchByHFRCode: function (document,code,orchestrations,callback) {
+      var url = new URI(config.url)
+        .segment('/CSD/csr/')
+        .segment(config[document])
+        .segment('careServicesRequest')
+        .segment('/urn:openhie.org:openinfoman-hwr:stored-function:facility_get_all')
+      var username = config.username
+      var password = config.password
+      var auth = "Basic " + new Buffer(username + ":" + password).toString("base64")
+      var csd_msg = `<csd:requestParams xmlns:csd='urn:ihe:iti:csd:2013'>
+                      <csd:otherID assigningAuthorityName="http://hfrportal.ehealth.go.tz" code="Fac_IDNumber">${code}</csd:otherID>
+                    </csd:requestParams>`
+      var options = {
+        url: url.toString(),
+        headers: {
+          Authorization: auth,
+          'Content-Type': 'text/xml'
+           },
+           body: csd_msg
+      }
+
+      let before = new Date()
+      request.post(options, function (err, res, body) {
+        orchestrations.push(utils.buildOrchestration('getting all facilities', before, 'GET', url.toString(), JSON.stringify(options.headers), res, body))
+        return callback(err,res,body)
+      })
+    },
+
     addVIMSFacility: function (facility,orchestrations,callback) {
       var url = new URI(config.url)
         .segment('/CSD/csr/')
@@ -180,6 +264,7 @@ module.exports = function (oimconfig) {
           },
           body: csd_msg
         }
+        let before = new Date()
         request.post(options, (err, res, body) => {
           winston.info("Added " + name)
           return callback(err,res,body)
@@ -222,15 +307,40 @@ module.exports = function (oimconfig) {
             },
             body: csd_msg
           }
-
+          let before = new Date()
           request.post(options, (err, res, body) => {
             winston.info("Processed " + org_name)
           })
         }))
       })
-    Promise.all(promises).then(() => {
-      return callback(err,res,body)
-    })
+      Promise.all(promises).then(() => {
+        return callback(err,res,body)
+      })
     },
+
+    execReq: function(doc_name,csd_msg,urn,orchestrations,callback) {
+      var url = new URI(config.url)
+        .segment('/CSD/csr/')
+        .segment(config[doc_name])
+        .segment(`/careServicesRequest/${urn}`)
+      var username = config.username
+      var password = config.password
+      var auth = "Basic " + new Buffer(username + ":" + password).toString("base64")
+      var options = {
+        url: url.toString(),
+        headers: {
+          Authorization: auth,
+         'Content-Type': 'text/xml'
+        },
+        body: csd_msg
+      }
+      let before = new Date()
+      winston.error("Sending Requsts")
+      request.post(options, (err, res, body) => {
+        winston.error("Received Response")
+        orchestrations.push(utils.buildOrchestration('Executing Req Against openinfoma', before, 'GET', url.toString(), JSON.stringify(options.headers), res, body))
+        return callback(err,res,body)
+      })
+    }
   }
 }
