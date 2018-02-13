@@ -219,6 +219,7 @@ function setupApp () {
     updateTransaction (req,"Still Processing","Processing","200","")
 
     var loop_counter = {}
+    var orgs = []
     function extract_orgs(org,parent) {
       loop_counter[parent] = org.length
       for(var k = 0;k<org.length;k++) {
