@@ -270,63 +270,120 @@ function setupApp () {
     //transaction will take long time,send response and then go ahead processing
     res.end()
     updateTransaction (req,"Still Processing","Processing","200","")
-    var nexturl = new URI(config.hfr.url).segment('/api/collections/409.json').addQuery('human', 'false')
-    var username = config.hfr.username
-    var password = config.hfr.password
-    var auth = "Basic " + new Buffer(username + ":" + password).toString("base64")
 
-    const promises = []
-    async.doWhilst(
-      function(callback) {
-        var options = {
-          url: nexturl.toString(),
-          headers: {
-            Authorization: auth
-          }
+    function getVillages(callback){
+      oim.countEntities("organization","hfr_document",orchestrations,(err,res,total)=>{
+        var firstRow = 1
+        var maxRows = 500
+        const promises = []
+        var villages = {}
+        for (var lastRow = maxRows; lastRow <= total; firstRow=lastRow+1,lastRow=lastRow+maxRows) {
+          var diff = total-lastRow
+          if(diff < maxRows)
+            lastRow = total
+          promises.push(new Promise((resolve, reject) => {
+            var csd_msg = `<csd:requestParams xmlns:csd='urn:ihe:iti:csd:2013'>
+                            <csd:start>${firstRow}</csd:start>
+                            <csd:max>${maxRows}</csd:max>
+                          </csd:requestParams>`
+            var urn = "urn:openhie.org:openinfoman-hwr:stored-function:organization_get_all"
+            oim.execReq("hfr_document",csd_msg,urn,orchestrations,(err,res,body)=>{
+              var ast = XmlReader.parseSync(body);
+              var totalOrg = xmlQuery(ast).find("organizationDirectory").children().size()
+              var loopCntr = totalOrg
+              var organizationDirectory = xmlQuery(ast).find("organizationDirectory").children()
+              var orgIndexes = Array.from({length: totalOrg}, (x,i) => i)
+              async.eachSeries(orgIndexes,(counter,nxtIndex)=>{
+                var entityID = organizationDirectory.eq(counter).attr("entityID")
+                var orgDetails = organizationDirectory.eq(counter).children()
+                var totalDetails = organizationDirectory.eq(counter).children().size()
+                var detailsLoopControl = totalDetails
+                for(var detailsCount = 0;detailsCount<totalDetails;detailsCount++) {
+                  if( orgDetails.eq(detailsCount).attr("assigningAuthorityName") == "http://hfrportal.ehealth.go.tz" &&
+                      orgDetails.eq(detailsCount).attr("code") == "code"
+                    ) {
+                      var admin_div = orgDetails.eq(detailsCount).text()
+                      villages[admin_div] = entityID
+                      nxtIndex()
+                      break
+                  }
+                  nxtIndex()
+                }
+              },function(){
+                return resolve()
+              })
+            })
+          }))
         }
-        let before = new Date()
-        request.get(options, function (err, res, body) {
-          if(isJSON(body)) {
-            var body = JSON.parse(body)
-            if(body.hasOwnProperty("sites")) {
-              for(var k=0;k<body.sites.length;k++) {
-                promises.push(new Promise((resolve, reject) => {
-                  oim.addHFRFacility(body.sites[k],orchestrations,(err,res,body)=>{
-                    resolve()
-                  })
-                }))
-              }
-              if(body.hasOwnProperty("nextPage"))
-                nexturl = body.nextPage
-              else
-                nexturl = false
+
+        Promise.all(promises).then(() => {
+          return callback(villages)
+        })
+      })
+    }
+
+    getVillages ((villages)=>{
+      var nexturl = new URI(config.hfr.url).segment('/api/collections/409.json').addQuery('human', 'false')
+      var username = config.hfr.username
+      var password = config.hfr.password
+      var auth = "Basic " + new Buffer(username + ":" + password).toString("base64")
+      const promises = []
+      async.doWhilst(
+        function(callback) {
+          var options = {
+            url: nexturl.toString(),
+            headers: {
+              Authorization: auth
             }
           }
-          else {
-            winston.error("Non JSON data returned by HFR while getting facilities")
-            return callback(err,false)
-          }
-          orchestrations.push(utils.buildOrchestration('Fetching facilities from HFR', before, 'GET', nexturl.toString(), JSON.stringify(options.headers), res, body))
-          return callback(err,nexturl)
-        })
-      },
-      function() {
-        if(nexturl)
-        winston.info("Fetching In " + nexturl)
-        if(nexturl == false) {
-          Promise.all(promises).then(() => {
-            winston.info("Done Sync HFR Facilities")
-            updateTransaction(req,"","Successful","200",orchestrations)
-            orchestrations = []
+          let before = new Date()
+          request.get(options, function (err, res, body) {
+            if(isJSON(body)) {
+              var body = JSON.parse(body)
+              if(body.hasOwnProperty("sites")) {
+                for(var k=0;k<body.sites.length;k++) {
+                  promises.push(new Promise((resolve, reject) => {
+                    var admin_div = body.sites[k].properties.Admin_div
+                    var parent_id
+                    if(villages.hasOwnProperty(admin_div)) {
+                      parent_id = villages[admin_div]
+                    }
+                    oim.addHFRFacility(body.sites[k],parent_id,orchestrations,(err,res,body)=>{
+                      resolve()
+                    })
+                  }))
+                }
+                if(body.hasOwnProperty("nextPage"))
+                  nexturl = body.nextPage
+                else
+                  nexturl = false
+              }
+            }
+            else {
+              winston.error("Non JSON data returned by HFR while getting facilities")
+              return callback(err,false)
+            }
+            orchestrations.push(utils.buildOrchestration('Fetching facilities from HFR', before, 'GET', nexturl.toString(), JSON.stringify(options.headers), res, body))
+            return callback(err,nexturl)
           })
+        },
+        function() {
+          if(nexturl)
+          winston.info("Fetching In " + nexturl)
+          if(nexturl == false) {
+            Promise.all(promises).then(() => {
+              winston.info("Done Sync HFR Facilities")
+              updateTransaction(req,"","Successful","200",orchestrations)
+              orchestrations = []
+            })
+          }
+          return (nexturl!=false)
+        },
+        function() {
+          winston.info("Done fetching all url")
         }
-        return (nexturl!=false)
-      },
-      function() {
-        winston.info("Done fetching all url")
-      }
-    )
-
+      )
+    })
   }),
 
   app.get('/autoMapDHIS-HFR', (req, res) => {
@@ -336,7 +393,7 @@ function setupApp () {
     //this transaction will take long time,send response and then go ahead processing
     res.end()
     updateTransaction (req,"Still Processing","Processing","200","")
-    oim.countEntities("facility",orchestrations,(err,res,total)=>{
+    oim.countEntities("facility","dhis_document",orchestrations,(err,res,total)=>{
       var firstRow = 1
       var maxRows = 50
       const promises = []
@@ -453,7 +510,7 @@ function start (callback) {
         } else {
           winston.info('Successfully registered mediator!')
           let app = setupApp()
-          const server = app.listen(9002, () => {
+          const server = app.listen(9003, () => {
             let configEmitter = medUtils.activateHeartbeat(apiConf.api)
             configEmitter.on('config', (newConfig) => {
               winston.info('Received updated config:', newConfig)
@@ -469,7 +526,7 @@ function start (callback) {
     // default to config from mediator registration
     config = mediatorConfig.config
     let app = setupApp()
-    const server = app.listen(9002, () => callback(server))
+    const server = app.listen(9003, () => callback(server))
   }
 }
 exports.start = start
