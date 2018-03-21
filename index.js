@@ -19,6 +19,7 @@ const OIM = require('./openinfoman')
 const Dom = require('xmldom').DOMParser
 var xml2json = require('xml2json');
 
+const port = 9003
 // Config
 var config = {} // this will vary depending on whats set in openhim-core
 const apiConf = require('./config/config')
@@ -510,7 +511,7 @@ function start (callback) {
         } else {
           winston.info('Successfully registered mediator!')
           let app = setupApp()
-          const server = app.listen(9003, () => {
+          const server = app.listen(port, () => {
             let configEmitter = medUtils.activateHeartbeat(apiConf.api)
             configEmitter.on('config', (newConfig) => {
               winston.info('Received updated config:', newConfig)
@@ -526,12 +527,12 @@ function start (callback) {
     // default to config from mediator registration
     config = mediatorConfig.config
     let app = setupApp()
-    const server = app.listen(9003, () => callback(server))
+    const server = app.listen(port, () => callback(server))
   }
 }
 exports.start = start
 
 if (!module.parent) {
   // if this script is run directly, start the server
-  start(() => winston.info('Listening on 9002...'))
+  start(() => winston.info('Listening on ' + port + '...'))
 }
