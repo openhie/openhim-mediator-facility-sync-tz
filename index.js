@@ -421,7 +421,7 @@ function setupApp () {
                       ) {
                         results.hfrcode = facilityDetails.eq(detailsCount).text()
                       }
-                    if( facilityDetails.eq(detailsCount).attr("assigningAuthorityName") == "tanzania-hmis" &&
+                    if( facilityDetails.eq(detailsCount).attr("assigningAuthorityName") == "https://dhis.moh.go.tz" &&
                         facilityDetails.eq(detailsCount).attr("code") == "dhisid"
                       ) {
                         results.dhisid = facilityDetails.eq(detailsCount).text()
@@ -451,7 +451,7 @@ function setupApp () {
                     var otherIDs = json.CSD.facilityDirectory["csd:facility"]["csd:otherID"]
                     var mapped = false
                     async.eachSeries(otherIDs,(otherid,nxtid)=>{
-                      if(otherid["code"] == "id" && otherid["assigningAuthorityName"] == "tanzania-hmis")
+                      if(otherid["code"] == "id" && otherid["assigningAuthorityName"] == "https://dhis.moh.go.tz")
                         mapped = true
                       return nxtid()
                     },function(){
@@ -464,7 +464,7 @@ function setupApp () {
                         var source_id = results[0].dhisid
                         var csd_msg = `<csd:requestParams xmlns:csd='urn:ihe:iti:csd:2013'>
                                           <csd:id entityID='${target_id}'/>
-                                          <csd:otherID assigningAuthorityName='tanzania-hmis' code='id'>${source_id}</csd:otherID>
+                                          <csd:otherID assigningAuthorityName='https://dhis.moh.go.tz' code='id'>${source_id}</csd:otherID>
                                         </csd:requestParams>`
                         var urn = "urn:openhie.org:openinfoman-tz:stored-function:facility_create_otherid"
                         oim.execReq("hfr_document",csd_msg,urn,orchestrations,(err,res,body)=>{
