@@ -27,8 +27,6 @@
         },
         "email_notification": {
           "emails": {
-            "1":"allyshaban5@gmail.com",
-            "2":"ashaban@intrahealth.org"
           },
           "smtp_host":"smtp.gmail.com",
           "smtp_port":"587",
