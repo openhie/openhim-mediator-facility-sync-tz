@@ -92,6 +92,10 @@ function display_report(from,change_page,total_page)
   var src_doc = document.docs.src_doc_name.value
   var target_doc = document.docs.target_doc_name.value
   var entity_type = document.docs.entity_type.value
+  let dupplicates = 'no'
+  if(document.getElementById('dupplicates').checked) {
+    dupplicates = 'yes'
+  }
   var districts = $('#chkveg').val()
   var max_rows = document.docs.max_rows.value
   var favorite = [];
@@ -112,10 +116,10 @@ xmlhttp.onreadystatechange=function()
     }
   }
   if(from=="page") {
-  xmlhttp.open("GET","merge_entities_JSP.php?page="+change_page+"&total_page="+total_page+"&districts="+districts+"&src_doc="+src_doc+"&target_doc="+target_doc+"&entity_type="+entity_type+"&max_rows="+max_rows,true);
+  xmlhttp.open("GET","merge_entities_JSP.php?page="+change_page+"&total_page="+total_page+"&districts="+districts+"&src_doc="+src_doc+"&target_doc="+target_doc+"&entity_type="+entity_type+"&max_rows="+max_rows + '&dupplicates='+dupplicates,true);
   }
   else
-xmlhttp.open("GET","merge_entities_JSP.php?districts="+districts+"&src_doc="+src_doc+"&target_doc="+target_doc+"&entity_type="+entity_type+"&max_rows="+max_rows,true);
+xmlhttp.open("GET","merge_entities_JSP.php?districts="+districts+"&src_doc="+src_doc+"&target_doc="+target_doc+"&entity_type="+entity_type+"&max_rows="+max_rows+'&dupplicates='+dupplicates,true);
 xmlhttp.send();
 }
 
@@ -191,10 +195,12 @@ function show(id,level_message) {
   <option>80</option>
   <option>100</option>
   <option value='all'>All</option>
-  </select></td>
-  ";
+  </select></td>";
   ?>
   <td></td><td><input type='submit' name='get_districts' value='Get Districts' class="btn btn-primary btn-xs"></td>
+  </tr>
+  <tr>
+  <td colspan='2'>&nbsp</td><td><input type='checkbox' name='dupplicates' id='dupplicates' value='dupplicates'>Display Double Matched Only</td>
   </tr>
   <?php
   if(isset($_POST["get_districts"])) {

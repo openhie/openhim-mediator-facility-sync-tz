@@ -463,7 +463,7 @@ if($_SERVER["REQUEST_METHOD"]=="POST") {
           $urn = "urn:openhie.org:openinfoman-hwr:stored-function:facility_delete_otherid_by_code";
     			$entities = $entity_match->exec_request($_POST["target_doc_name"],$csr,$urn);
 
-          
+
         }
       }
 		}
@@ -510,6 +510,7 @@ $src_doc_name = $_REQUEST["src_doc"];
 $entity_type = $_REQUEST["entity_type"];
 $max_rows = $_REQUEST["max_rows"];
 $host = "http://localhost:8984/CSD";
+$dupplicates = $_REQUEST["dupplicates"];
 $entity_match = new entityMatchLevenshtein($host,$target_doc_name,$src_doc_name,$entity_type);
 $entity_match->mem = $mem;
 $match=array("1<sup>st</sup> Best Matches","2<sup>nd</sup> Best Matches","3<sup>rd</sup> Best Matches","4<sup>th</sup> Best Matches","5<sup>th</sup> Best Matches");
@@ -632,14 +633,22 @@ foreach ($entity_match->source_entities[$src_doc_name] as $entity_id=>$entity) {
   $vimsftype = $entity["facilityType"];
   $vimsname = $entity["name"];
   $vimsactive = $entity["active"];
-
   $remainder=$count%2;
   if ($remainder==0)
   $bgcolor='daebf2';
   else
   $bgcolor='#CCCCCC';
 
-	$rankings = $entity_match->find_matching_entities($entity_id,$vimsname,$vimsid,$vimscode);
+  $rankings = $entity_match->find_matching_entities($entity_id,$vimsname,$vimsid,$vimscode);
+  $dupp_found = false;
+  foreach($rankings['dup'] as $uuid=>$values){
+    if(count($values["vimsid"])>1) {
+      $dupp_found = true;
+    }
+  }
+  if(!$dupp_found && $dupplicates == 'yes') {
+    continue;
+  }
   if(array_key_exists("dup",$rankings) and count($rankings["dup"])>1)
   echo "<tr bgcolor='	#EC7063'>";
   else

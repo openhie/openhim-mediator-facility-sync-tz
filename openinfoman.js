@@ -7,14 +7,15 @@ const Dom = require('xmldom').DOMParser
 
 module.exports = function (oimconfig) {
   const config = oimconfig
-  function getHFROrgParent(orgs,parent_id) {
+
+  function getHFROrgParent(orgs, parent_id) {
     return orgs.find(org => {
       return org.id == parent_id
     })
   }
 
   return {
-    countEntities: function(entity_type,document,orchestrations,callback) {
+    countEntities: function (entity_type, document, orchestrations, callback) {
       var url = new URI(config.url)
         .segment('/CSD/csr/')
         .segment(config[document])
@@ -31,18 +32,17 @@ module.exports = function (oimconfig) {
         headers: {
           Authorization: auth,
           'Content-Type': 'text/xml'
-           },
-           body: csd_msg
+        },
+        body: csd_msg
       }
-
       let before = new Date()
       request.post(options, function (err, res, body) {
         orchestrations.push(utils.buildOrchestration('Counting entities', before, 'GET', url.toString(), JSON.stringify(options.headers), res, body))
-        return callback(err,res,body)
+        return callback(err, res, body)
       })
     },
 
-    getFacilities: function (document,first_row,max_rows,orchestrations,callback) {
+    getFacilities: function (document, first_row, max_rows, orchestrations, callback) {
       var url = new URI(config.url)
         .segment('/CSD/csr/')
         .segment(config[document])
@@ -60,17 +60,17 @@ module.exports = function (oimconfig) {
         headers: {
           Authorization: auth,
           'Content-Type': 'text/xml'
-           },
-           body: csd_msg
+        },
+        body: csd_msg
       }
       let before = new Date()
       request.post(options, function (err, res, body) {
         orchestrations.push(utils.buildOrchestration('getting all facilities', before, 'GET', url.toString(), JSON.stringify(options.headers), res, body))
-        return callback(err,res,body)
+        return callback(err, res, body)
       })
     },
 
-    searchByHFRCode: function (document,code,orchestrations,callback) {
+    searchByHFRCode: function (document, code, orchestrations, callback) {
       var url = new URI(config.url)
         .segment('/CSD/csr/')
         .segment(config[document])
@@ -87,18 +87,18 @@ module.exports = function (oimconfig) {
         headers: {
           Authorization: auth,
           'Content-Type': 'text/xml'
-           },
-           body: csd_msg
+        },
+        body: csd_msg
       }
 
       let before = new Date()
       request.post(options, function (err, res, body) {
         orchestrations.push(utils.buildOrchestration('getting all facilities', before, 'GET', url.toString(), JSON.stringify(options.headers), res, body))
-        return callback(err,res,body)
+        return callback(err, res, body)
       })
     },
 
-    addVIMSFacility: function (facility,orchestrations,callback) {
+    addVIMSFacility: function (facility, orchestrations, callback) {
       var url = new URI(config.url)
         .segment('/CSD/csr/')
         .segment(config.vims_document)
@@ -122,18 +122,18 @@ module.exports = function (oimconfig) {
         headers: {
           Authorization: auth,
           'Content-Type': 'text/xml'
-           },
-           body: csd_msg
+        },
+        body: csd_msg
       }
 
       let before = new Date()
       request.post(options, function (err, res, body) {
         orchestrations.push(utils.buildOrchestration('Creating VIMS facility to openinfoman', before, 'GET', url.toString(), JSON.stringify(options.headers), res, body))
-        return callback(err,body)
+        return callback(err, body)
       })
     },
 
-    addDHISFacility: function(orgUnitDet,orchestrations,callback) {
+    addDHISFacility: function (orgUnitDet, orchestrations, callback) {
       var url = new URI(config.url)
         .segment('/CSD/csr/')
         .segment(config.dhis_document)
@@ -141,10 +141,10 @@ module.exports = function (oimconfig) {
       var username = config.username
       var password = config.password
       var pid = ""
-      if(orgUnitDet.hasOwnProperty("parent") && orgUnitDet.parent.hasOwnProperty("id")) {
+      if (orgUnitDet.hasOwnProperty("parent") && orgUnitDet.parent.hasOwnProperty("id")) {
         pid = orgUnitDet.parent.id
       }
-      var name = orgUnitDet.name.replace("&","&amp;")
+      var name = orgUnitDet.name.replace("&", "&amp;")
       var auth = "Basic " + new Buffer(username + ":" + password).toString("base64")
       var csd_msg = `<csd:requestParams xmlns:csd="urn:ihe:iti:csd:2013">
                       <csd:facility id="${orgUnitDet.id}">
@@ -158,18 +158,18 @@ module.exports = function (oimconfig) {
         headers: {
           Authorization: auth,
           'Content-Type': 'text/xml'
-           },
-           body: csd_msg
+        },
+        body: csd_msg
       }
 
       let before = new Date()
       request.post(options, function (err, res, body) {
         orchestrations.push(utils.buildOrchestration('Creating DHIS2 facility to openinfoman', before, 'GET', url.toString(), JSON.stringify(options.headers), res, body))
-        return callback(err,res,body,pid)
+        return callback(err, res, body, pid)
       })
     },
 
-    addDHISOrg: function(orgUnitDet,type,orchestrations,callback) {
+    addDHISOrg: function (orgUnitDet, type, orchestrations, callback) {
       var url = new URI(config.url)
         .segment('/CSD/csr/')
         .segment(config.dhis_document)
@@ -177,11 +177,11 @@ module.exports = function (oimconfig) {
       var username = config.username
       var password = config.password
       var pid = ""
-      if(orgUnitDet.hasOwnProperty("parent") && orgUnitDet.parent.hasOwnProperty("id")) {
+      if (orgUnitDet.hasOwnProperty("parent") && orgUnitDet.parent.hasOwnProperty("id")) {
         pid = orgUnitDet.parent.id
       }
       var auth = "Basic " + new Buffer(username + ":" + password).toString("base64")
-      var name = orgUnitDet.name.replace("&","&amp;")
+      var name = orgUnitDet.name.replace("&", "&amp;")
       var csd_msg = `<csd:requestParams xmlns:csd="urn:ihe:iti:csd:2013">
                       <csd:organization id="${orgUnitDet.id}">
                         <csd:name>${name}</csd:name>
@@ -194,28 +194,28 @@ module.exports = function (oimconfig) {
         headers: {
           Authorization: auth,
           'Content-Type': 'text/xml'
-           },
-           body: csd_msg
+        },
+        body: csd_msg
       }
 
       let before = new Date()
       request.post(options, function (err, res, body) {
         orchestrations.push(utils.buildOrchestration('Creating DHIS2 Organization to openinfoman', before, 'GET', url.toString(), JSON.stringify(options.headers), res, body))
-        return callback(err,res,body,pid)
+        return callback(err, res, body, pid)
       })
     },
 
-    addHFRFacility: function(facility,parent_id,orchestrations,callback) {
+    addHFRFacility: function (facility, parent_id, orchestrations, callback) {
       var name = facility.name
-      name = name.replace("&","&amp;")
+      name = name.replace("&", "&amp;")
       var id = facility.id
       var code = facility.properties.Fac_IDNumber
       var fac_type = facility.properties.Fac_Type
       var url = new URI(config.url)
-                    .segment('/CSD/csr/')
-                    .segment(config.hfr_document)
-                    .segment('careServicesRequest')
-                    .segment('/update/urn:openhie.org:openinfoman-tz:facility_create_hfr_tz')
+        .segment('/CSD/csr/')
+        .segment(config.hfr_document)
+        .segment('careServicesRequest')
+        .segment('/update/urn:openhie.org:openinfoman-tz:facility_create_hfr_tz')
       var username = config.username
       var password = config.password
       var auth = "Basic " + new Buffer(username + ":" + password).toString("base64")
@@ -230,32 +230,31 @@ module.exports = function (oimconfig) {
         url: url.toString(),
         headers: {
           Authorization: auth,
-         'Content-Type': 'text/xml'
+          'Content-Type': 'text/xml'
         },
         body: csd_msg
       }
-      let before = new Date()
       request.post(options, (err, res, body) => {
         winston.info("Added " + name)
-        return callback(err,res,body)
+        return callback(err, res, body)
       })
     },
 
-    addHFROrgs: function(orgs,orchestrations,callback) {
+    addHFROrgs: function (orgs, orchestrations, callback) {
       var username = config.username
       var password = config.password
       var auth = "Basic " + new Buffer(username + ":" + password).toString("base64")
       const promises = []
-      orgs.forEach(org=>{
+      orgs.forEach(org => {
         promises.push(new Promise((resolve, reject) => {
           var parent_id = org.parent
-          var org_id =org.id
+          var org_id = org.id
           var org_name = org.name
-          org_name = org_name.replace("&","&amp;")
-          if(parent_id != "Top") {
-            var parent = getHFROrgParent(orgs,org.parent)
+          org_name = org_name.replace("&", "&amp;")
+          if (parent_id != "Top") {
+            var parent = getHFROrgParent(orgs, org.parent)
             var parent_name = parent.name
-            parent_name = parent_name.replace("&","&amp;")
+            parent_name = parent_name.replace("&", "&amp;")
           }
           var csd_msg = `<csd:requestParams xmlns:csd="urn:ihe:iti:csd:2013">
                           <csd:organization id="${org_id}">
@@ -264,15 +263,15 @@ module.exports = function (oimconfig) {
                           </csd:organization>
                         </csd:requestParams>`
           var url = new URI(config.url)
-                      .segment('/CSD/csr/')
-                      .segment(config.hfr_document)
-                      .segment('careServicesRequest')
-                      .segment('/update/urn:openhie.org:openinfoman-tz:organization_create_hfr_tz')
+            .segment('/CSD/csr/')
+            .segment(config.hfr_document)
+            .segment('careServicesRequest')
+            .segment('/update/urn:openhie.org:openinfoman-tz:organization_create_hfr_tz')
           var options = {
             url: url.toString(),
             headers: {
               Authorization: auth,
-             'Content-Type': 'text/xml'
+              'Content-Type': 'text/xml'
             },
             body: csd_msg
           }
@@ -283,11 +282,11 @@ module.exports = function (oimconfig) {
         }))
       })
       Promise.all(promises).then(() => {
-        return callback(err,res,body)
+        return callback(err, res, body)
       })
     },
 
-    execReq: function(doc_name,csd_msg,urn,orchestrations,callback) {
+    execReq: function (doc_name, csd_msg, urn, orchestrations, callback) {
       var url = new URI(config.url)
         .segment('/CSD/csr/')
         .segment(config[doc_name])
@@ -299,14 +298,14 @@ module.exports = function (oimconfig) {
         url: url.toString(),
         headers: {
           Authorization: auth,
-         'Content-Type': 'text/xml'
+          'Content-Type': 'text/xml'
         },
         body: csd_msg
       }
       let before = new Date()
       request.post(options, (err, res, body) => {
         orchestrations.push(utils.buildOrchestration('Executing Req Against openinfoma', before, 'GET', url.toString(), JSON.stringify(options.headers), res, body))
-        return callback(err,res,body)
+        return callback(err, res, body)
       })
     }
   }

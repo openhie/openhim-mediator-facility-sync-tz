@@ -8,14 +8,14 @@ const isJSON = require('is-json')
 module.exports = function (dhisconfig) {
   const config = dhisconfig
   return {
-    getFacilities: function (orchestrations,callback) {
+    getFacilities: function (orchestrations, callback) {
       var orgUnits = []
-      var nexturl = new URI(config.url).segment('/dhis/api/organisationUnits')
+      var nexturl = new URI(config.url).segment('/api/organisationUnits')
       var username = config.username
       var password = config.password
       var auth = "Basic " + new Buffer(username + ":" + password).toString("base64")
       async.doWhilst(
-        function(callback) {
+        function (callback) {
           var options = {
             url: nexturl.toString(),
             headers: {
@@ -24,38 +24,37 @@ module.exports = function (dhisconfig) {
           }
           let before = new Date()
           request.get(options, function (err, res, body) {
-            if(isJSON(body)) {
+            if (isJSON(body)) {
               var body = JSON.parse(body)
-              if(body.hasOwnProperty("organisationUnits")) {
-                orgUnits.push(body.organisationUnits)                
-                if(body.hasOwnProperty("pager") && body.pager.hasOwnProperty("nextPage"))
+              if (body.hasOwnProperty("organisationUnits")) {
+                orgUnits = orgUnits.concat(body.organisationUnits)
+                if (body.hasOwnProperty("pager") && body.pager.hasOwnProperty("nextPage"))
                   nexturl = body.pager.nextPage
                 else
                   nexturl = false
               }
-            }
-            else {
+            } else {
               winston.error("Non JSON data returned by DHIS2 while getting organization Units")
-              return callback(err,false)
+              return callback(err, false)
             }
             orchestrations.push(utils.buildOrchestration('Fetching facilities from DHIS2', before, 'GET', nexturl.toString(), JSON.stringify(options.headers), res, body))
-            return callback(err,nexturl)
+            return callback(err, nexturl)
           })
         },
-        function() {
-          if(nexturl)
-          winston.info("Fetching In " + nexturl)
-          return (nexturl!=false)
+        function () {
+          if (nexturl)
+            winston.info("Fetching In " + nexturl)
+          return (nexturl != false)
         },
-        function() {
+        function () {
           return callback(orgUnits)
         }
       )
     },
 
-    getOrgUnitDet: function (facId,orchestrations,callback) {
+    getOrgUnitDet: function (facId, orchestrations, callback) {
       var orgUnits = []
-      var url = new URI(config.url).segment('/dhis/api/organisationUnits/' + facId)
+      var url = new URI(config.url).segment('/api/organisationUnits/' + facId)
       var username = config.username
       var password = config.password
       var auth = "Basic " + new Buffer(username + ":" + password).toString("base64")
@@ -68,7 +67,7 @@ module.exports = function (dhisconfig) {
       let before = new Date()
       request.get(options, function (err, res, body) {
         orchestrations.push(utils.buildOrchestration('Fetching facilities from DHIS2', before, 'GET', url.toString(), JSON.stringify(options.headers), res, body))
-        return callback(err,body)
+        return callback(err, body)
       })
     }
   }
